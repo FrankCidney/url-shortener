@@ -5,7 +5,6 @@ import (
 	"errors"
 	"io"
 	"net/http"
-	"net/url"
 	"strings"
 	"time"
 )
@@ -41,28 +40,6 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, apiError{Error: msg})
-}
-
-func validateURL(raw string) error {
-	// make sure URL is not empty
-	if raw == "" {
-		return errors.New("url is required")
-	}
-
-	// parseable i.e., no syntax errors
-	u, err := url.Parse(raw)
-	if err != nil {
-		return errors.New("invalid url")
-	}
-
-	// url.Parse allows relative paths; so here we require scheme and host, + reject unwanted schemes
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return errors.New("url scheme must be http or https")
-	}
-	if u.Host == "" {
-		return errors.New("url missing host")
-	}
-	return nil
 }
 
 func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
@@ -110,19 +87,19 @@ func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 5) validate the URL
-	if err := validateURL(req.URL); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
-		return
-	}
-
-	// 6) generate short code
+	// 5) generate short code
 	link, err := h.service.Create(req.URL)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, err.Error())
+		switch {
+		case errors.Is(err, ErrInvalidURL):
+			writeError(w, http.StatusBadRequest, err.Error())
+		default:
+			writeError(w, http.StatusInternalServerError, err.Error())
+		}
 		return
 	}
 
+	// 6) write response
 	resp := shortenResponse{
 		Short: link.ID,
 		URL:   link.URL,
