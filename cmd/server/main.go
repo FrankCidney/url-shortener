@@ -2,45 +2,53 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"shortener/internal/shorten"
 )
 
-type response struct {
-	Message string `json:"message"`
-	Status string `json:"status,omitempty"`
-	StatusCode int `json:"status_code,omitempty"`
-}
+// type response struct {
+// 	Message string `json:"message"`
+// 	Status string `json:"status,omitempty"`
+// 	StatusCode int `json:"status_code,omitempty"`
+// }
 
-func HandleHome(w http.ResponseWriter, r *http.Request) {
-	var res = response{
-		Message: "hehehehehelloooooo",
-	}
+// func HandleHome(w http.ResponseWriter, r *http.Request) {
+// 	var res = response{
+// 		Message: "hehehehehelloooooo",
+// 	}
 
-	resJson, err := json.Marshal(res)
-	if err != nil {
-		log.Printf("marshaling error: %v", err)
-	}
-	log.Println("resJson", string(resJson))
+// 	resJson, err := json.Marshal(res)
+// 	if err != nil {
+// 		log.Printf("marshaling error: %v", err)
+// 	}
+// 	log.Println("resJson", string(resJson))
 
-	w.Header().Set("Content-Type", "application/json")
-	_, err = w.Write(resJson)
-	if err != nil {
-		log.Printf("error writing body (HandleHome): %v", err)
-	}
-}
+// 	w.Header().Set("Content-Type", "application/json")
+// 	_, err = w.Write(resJson)
+// 	if err != nil {
+// 		log.Printf("error writing body (HandleHome): %v", err)
+// 	}
+// }
 
 func Start(ctx context.Context) error {
+	// 1. Create infra / dependencies
+	store := shorten.NewMemStore()
+	generator := shorten.NewBase62Generator()
+	shortener := shorten.NewShortener(store, generator)
+
+	// 2. Create mux
 	mux := http.NewServeMux()
 
-	// handle routes
-	mux.HandleFunc("/", HandleHome)
+	// 3. Register routes
+	shorten.RegisterRoutes(mux, shortener)
 
+	// 4. Create and start server
 	server := http.Server{
 		Addr: ":8080",
 		Handler: mux,
@@ -58,6 +66,7 @@ func Start(ctx context.Context) error {
 
 	log.Println("shutdown signal received")
 
+	// Graceful shutdown
 	shutDownCtx, cancel := context.WithTimeout(ctx, 5 * time.Second)
 	defer cancel()
 	return server.Shutdown(shutDownCtx)

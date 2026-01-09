@@ -6,9 +6,19 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
 )
 
 const maxBodyBytes = 1 << 20 // 1MB
+
+type Handler struct {
+	service *Shortener
+}
+
+func NewHandler(s *Shortener) *Handler {
+	return &Handler{service: s}
+}
 
 type shortenRequest struct {
 	URL string `json:"url"`
@@ -33,7 +43,29 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 	writeJSON(w, status, apiError{Error: msg})
 }
 
-func HandleShorten(w http.ResponseWriter, r *http.Request) {
+func validateURL(raw string) error {
+	// make sure URL is not empty
+	if raw == "" {
+		return errors.New("url is required")
+	}
+
+	// parseable i.e., no syntax errors
+	u, err := url.Parse(raw)
+	if err != nil {
+		return errors.New("invalid url")
+	}
+
+	// url.Parse allows relative paths; so here we require scheme and host, + reject unwanted schemes
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return errors.New("url scheme must be http or https")
+	}
+	if u.Host == "" {
+		return errors.New("url missing host")
+	}
+	return nil
+}
+
+func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 	// 1) method
 	// This one's basically redundant since Go already blocks other methods when you indicate the method in your path string when
 	// registering a handler. 
@@ -44,7 +76,7 @@ func HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 2) limit body size
+	// 2) limit body size to prevent DoS attacks
 	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
 	dec := json.NewDecoder(r.Body)
 
@@ -84,35 +116,67 @@ func HandleShorten(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 6) generate short code (placeholder)
-	short := "foo123" // replace with real generator later
-
+	// 6) generate short code
+	link, err := h.service.Create(req.URL)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
 	resp := shortenResponse{
-		Short: short,
-		URL:   req.URL,
+		Short: link.ID,
+		URL:   link.URL,
 	}
 	writeJSON(w, http.StatusOK, resp)
 }
 
-func validateURL(raw string) error {
-	// make sure URL is not empty
-	if raw == "" {
-		return errors.New("url is required")
+func (h *Handler) HandleRedirect(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "missing id")
+		return
 	}
 
-	// parseable i.e., no syntax errors
-	u, err := url.Parse(raw)
+	url, err := h.service.Resolve(id)
 	if err != nil {
-		return errors.New("invalid url")
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "short link not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
 	}
 
-	// url.Parse allows relative paths; require scheme and host, + reject unwanted schemes
-	if u.Scheme != "http" && u.Scheme != "https" {
-		return errors.New("url scheme must be http or https")
+	http.Redirect(w, r, url, http.StatusFound) // 302 redirect
+}
+
+func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimPrefix(r.URL.Path, "/stats/")
+	if id == "" {
+		writeError(w, http.StatusBadRequest, "misssing id")
+		return
 	}
-	if u.Host == "" {
-		return errors.New("url missing host")
+
+	link, err := h.service.Stats(id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			writeError(w, http.StatusNotFound, "short link not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, err.Error())
+		return
 	}
-	return nil
+
+	resp := struct {	
+		URL       string `json:"url"`
+		Short        string `json:"short"`
+		Hits      int64 `json:"hits"`
+		CreatedAt string `json:"createdAt"`
+	} {
+		URL: link.URL,
+		Short: link.ID,
+		Hits: link.Hits,
+		CreatedAt: link.CreatedAt.Format(time.RFC3339),
+	}
+
+	writeJSON(w, http.StatusOK, resp)
 }

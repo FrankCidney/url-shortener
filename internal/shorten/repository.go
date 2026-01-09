@@ -2,33 +2,40 @@ package shorten
 
 import "sync"
 
+// type Store interface {
+// 	Save(id string, url string) error
+// 	Get(id string) (string, bool)
+// 	List() map[string]string
+// }
+
 type Store interface {
-	Save(id string, url string) error
-	Get(id string) (string, bool)
-	List() map[string]string
+	Save(link ShortLink) error
+	Get(id string) (ShortLink, bool)
+	List() []ShortLink
+	IncrementHits(id string)
 }
 
 type MemStore struct {
 	mu sync.RWMutex
-	data map[string]string
+	data map[string]ShortLink
 }
 
 func NewMemStore() *MemStore {
 	return &MemStore{
-		data: make(map[string]string),
+		data: make(map[string]ShortLink),
 	}
 }
 
-func (store *MemStore) Save(id string, url string) error {
+func (store *MemStore) Save(link ShortLink) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	
-	store.data[id] = url
+	store.data[link.ID] = link
 
 	return nil
 }
 
-func (store *MemStore) Get(id string) (string, bool) {
+func (store *MemStore) Get(id string) (ShortLink, bool) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
@@ -36,16 +43,30 @@ func (store *MemStore) Get(id string) (string, bool) {
 	return value, exists
 }
 
-func (store *MemStore) List() map[string]string {
+func (store *MemStore) List() []ShortLink {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
 	// return a snapshot, not the internal map
-	copy := make(map[string]string, len(store.data))
+	// copy := make(map[string]ShortLink, len(store.data))
+	copy := make([]ShortLink, len(store.data))
 
-	for k, v := range store.data {
-		copy[k] = v
+	for _, v := range store.data {
+		copy = append(copy, v)
 	}
 
 	return copy
+}
+
+func (store *MemStore) IncrementHits(id string) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+
+	link, ok := store.data[id]
+	if !ok {
+		return
+	}
+
+	link.Hits++
+	store.data[id] = link
 }
