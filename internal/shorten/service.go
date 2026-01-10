@@ -7,8 +7,10 @@ import (
 	"time"
 )
 
+// todo: Find out: Should these (the error definitions below) be moved to a separate file specifically for errors? Is that better design than having them here?
 var ErrNotFound = errors.New("not found")
 var ErrInvalidURL = errors.New("invalid url")
+var ErrTooManyCollisions = errors.New("could not generate unique id, too many collisions")
 
 type Shortener struct {
 	store Store
@@ -44,8 +46,9 @@ func validateURL(raw string) error {
 	return nil
 }
 
+// Create generates a Short ID and saves it along with the associated URL
+// It also initialises a hit counter and saves the time of creation (CreatedAt)
 func (s *Shortener) Create(url string) (ShortLink, error) {
-
 	// Validate the URL
 	if err := validateURL(url); err != nil {
 		return ShortLink{}, fmt.Errorf("%w: %s", ErrInvalidURL, err)
@@ -84,10 +87,10 @@ func (s *Shortener) Create(url string) (ShortLink, error) {
 		return link, nil
 	}
 
-	return ShortLink{}, errors.New("could not generate unique id")
+	return ShortLink{}, ErrTooManyCollisions 
 }
 
-// Resolve gets the URL associated with the given short id, and increments hits
+// Resolve returns the URL associated with the given id. It also increments hits
 func (s *Shortener) Resolve(id string) (string, error) {
 	link, ok := s.store.Get(id)
 	if !ok {
@@ -99,6 +102,7 @@ func (s *Shortener) Resolve(id string) (string, error) {
 	return link.URL, nil
 }
 
+// Stats returns metadata for an ID, including the Short ID itself, the associated URL, hit count, and time of creation of the ID
 func (s *Shortener) Stats(id string) (ShortLink, error) {
 	link, ok := s.store.Get(id)
 	if !ok {
