@@ -1,70 +1,95 @@
 package shorten
-// package shorten
 
-// import (
-// 	"fmt"
-// 	"sync"
-// 	"testing"
-// )
+import (
+	"fmt"
+	"sync"
+	"testing"
+	"time"
+)
 
-// func TestMemStore_SaveGetList(t *testing.T) {
-// 	t.Run("save and get", func(t *testing.T) {
-// 		store := NewMemStore()
-// 		id := "abc123"
-// 		url := "https://example.com"
+func newTestData(id string, url string) ShortLink {
+	link := ShortLink{
+		ID: id,
+		URL: url,
+		CreatedAt: time.Now(),
+		Hits: 0,
+	}
 
-// 		if err := store.Save(id, url); err != nil {
-// 			t.Fatalf("unexpected error on save: %v", err)
-// 		}
+	return link
+}
 
-// 		got, ok := store.Get(id)
-// 		if !ok {
-// 			t.Fatal("expected id to exist")
-// 		}
-// 		if got != url {
-// 			t.Fatalf("expected url %q, got %q", url, got)
-// 		}
-// 	})
+func TestMemStore_SaveGetList(t *testing.T) {
+	store := NewMemStore()
+	link := newTestData("abc123", "https://example.com")
 
-// 	t.Run("list", func(t *testing.T) {
-// 		store := NewMemStore()
-// 		store.Save("a", "url1")
-// 		store.Save("b", "url2")
+	t.Run("save and get", func(t *testing.T) {
+		if err := store.Save(link); err != nil {
+			t.Fatalf("unexpected error on save: %v", err)
+		}
 
-// 		m := store.List()
-// 		if len(m) != 2 {
-// 			t.Fatalf("expected 2 items, got %d", len(m))
-// 		}
+		gotLink, ok := store.Get(link.ID)
+		if !ok {
+			t.Fatal("expected id to exist")
+		}
 
-// 		// Make sure modifying returned map doesn't affect internal state
-// 		m["c"] = "url3"
-// 		if _, ok := store.Get("c"); ok {
-// 			t.Fatal("modifying List result changed store")
-// 		}
-// 	})
-// }
+		if gotLink.ID != link.ID {
+			t.Fatalf("expected id %q, got %q", link.ID, gotLink.ID)
+		}
 
-// func TestMemStore_ConcurrentSaveGet(t *testing.T) {
-// 	store := NewMemStore()
-// 	wg := sync.WaitGroup{}
+		if gotLink.URL != link.URL {
+			t.Fatalf("expected url %q, got %q", link.URL, gotLink.URL)
+		}
 
-// 	n := 1000
+		if gotLink.Hits != link.Hits {
+			t.Fatalf("expected hits %d, got %d", link.Hits, gotLink.Hits)
+		}
 
-// 	for i := 0; i < n; i++ {
-// 		wg.Add(2)
+		if gotLink.CreatedAt.IsZero() {
+			t.Fatalf("expected CreatedAt to be set")
+		}
+	})
 
-// 		go func(i int) {
-// 			defer wg.Done()
-// 			id := fmt.Sprintf("id%d", i)
-// 			store.Save(id, "url")
-// 		}(i)
+	t.Run("list", func(t *testing.T) {
+		store := NewMemStore()
+		link1 := newTestData("a", "url1")
+		link2 := newTestData("b", "url2")
 
-// 		go func(i int) {
-// 			defer wg.Done()
-// 			id := fmt.Sprintf("id%d", i)
-// 			store.Get(id)
-// 		}(i)
-// 	}
+		if err := store.Save(link1); err != nil {
+			t.Fatalf("unexpected error on save: %v", err)
+		}
 
-// 	wg.Wait()
-// }
+		if err := store.Save(link2); err != nil {
+			t.Fatalf("unexpected error on save: %v", err)
+		}
+
+		links := store.List()
+		if len(links) != 2 {
+			t.Fatalf("expected 2 items, got %d", len(links))
+		}
+	})
+}
+
+func TestMemStore_ConcurrentSaveGet(t *testing.T) {
+	store := NewMemStore()
+	wg := sync.WaitGroup{}
+
+	n := 1000
+
+	for i := 0; i < n; i++ {
+		wg.Add(2)
+
+		go func(i int) {
+			defer wg.Done()
+			id := fmt.Sprintf("id%d", i)
+			store.Save(newTestData(id, "url"))
+		}(i)
+
+		go func(i int) {
+			defer wg.Done()
+			id := fmt.Sprintf("id%d", i)
+			store.Get(id)
+		}(i)
+	}
+
+	wg.Wait()
+}

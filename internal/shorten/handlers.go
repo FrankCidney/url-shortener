@@ -28,6 +28,13 @@ type shortenResponse struct {
 	URL   string `json:"url"`
 }
 
+type statsResponse struct {	
+		URL       string `json:"url"`
+		Short        string `json:"short"`
+		Hits      int64 `json:"hits"`
+		CreatedAt string `json:"createdAt"`
+	}
+
 type apiError struct {
 	Error string `json:"error"`
 }
@@ -143,12 +150,7 @@ func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := struct {	
-		URL       string `json:"url"`
-		Short        string `json:"short"`
-		Hits      int64 `json:"hits"`
-		CreatedAt string `json:"createdAt"`
-	} {
+	resp := statsResponse{
 		URL: link.URL,
 		Short: link.ID,
 		Hits: link.Hits,

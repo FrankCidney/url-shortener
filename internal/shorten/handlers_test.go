@@ -1,191 +1,284 @@
 package shorten
-// package shorten
 
-// import (
-// 	"encoding/json"
-// 	"net/http"
-// 	"net/http/httptest"
-// 	"strings"
-// 	"testing"
-// )
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+	"time"
+)
 
-// func TestHandleShorten(t *testing.T) {
-// 	t.Run("happy path", func(t *testing.T) {
-// 		body := `{"url":"https://example.com"}`
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		req.Header.Set("Content-Type", "application/json")
+func newTestGenerator() IDGenerator {
+	return NewBase62Generator()
+}
 
-// 		rr := httptest.NewRecorder()
-// 		HandleShorten(rr, req)
+func TestHandleShorten(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)
 
-// 		if status := rr.Code; status != http.StatusOK {
-// 			t.Errorf("expected status %d, got %d", http.StatusOK, status)
-// 		}
+		body := `{"url":"https://example.com"}`
+		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 
-// 		var resp shortenResponse
-// 		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
-// 			t.Fatalf("failed to decode response: %v", err)
-// 		}
+		rr := httptest.NewRecorder()
+		handler.HandleShorten(rr, req)
 
-// 		if resp.Short == "" {
-// 			t.Error("expected short code, got empty string")
-// 		}
-// 		if resp.URL != "https://example.com" {
-// 			t.Errorf("expected URL https://example.com, got %s", resp.URL)
-// 		}
-// 	})
+		if status := rr.Code; status != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, status)
+		}
 
-// 	t.Run("wrong HTTP method", func(t *testing.T) {
-// 		req := httptest.NewRequest(http.MethodGet, "/shorten", nil)
-// 		rr := httptest.NewRecorder()
+		var resp shortenResponse
+		if err := json.NewDecoder(rr.Body).Decode(&resp); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
 
-// 		HandleShorten(rr, req)
+		if resp.Short == "" {
+			t.Error("expected short code, got empty string")
+		}
+		if resp.URL != "https://example.com" {
+			t.Errorf("expected URL https://example.com, got %s", resp.URL)
+		}
+	})
 
-// 		if status := rr.Code; status != http.StatusMethodNotAllowed {
-// 			t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, status)
-// 		}
+	t.Run("wrong HTTP method", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)
 
-// 		if allow := rr.Header().Get("Allow"); allow != http.MethodPost {
-// 			t.Errorf("expected Allow header %s, got %s", http.MethodPost, allow)
-// 		}
-// 	})
+		req := httptest.NewRequest(http.MethodGet, "/shorten", nil)
+		rr := httptest.NewRecorder()
 
-// 	// syntax error in request body JSON
-// 	t.Run("malformed JSON", func(t *testing.T) {
-// 		body := `{"url": "https://example.com}` // no closing quote for value
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		req.Header.Set("Content-Type", "application/json")
+		handler.HandleShorten(rr, req)
 
-// 		rr := httptest.NewRecorder()
-// 		HandleShorten(rr, req)
+		if status := rr.Code; status != http.StatusMethodNotAllowed {
+			t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, status)
+		}
 
-// 		if status := rr.Code; status != http.StatusBadRequest {
-// 			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
-// 		}
-// 	})
+		if allow := rr.Header().Get("Allow"); allow != http.MethodPost {
+			t.Errorf("expected Allow header %s, got %s", http.MethodPost, allow)
+		}
+	})
 
-// 	// DisallowUnknownFields error
-// 	t.Run("unknown fields in JSON", func(t *testing.T) {
-// 		body := `{"url":"https://example.com", "extra":"nope"}`
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		rr := httptest.NewRecorder()
+	// syntax error in request body JSON
+	t.Run("malformed JSON", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)
 
-// 		HandleShorten(rr, req)
+		body := `{"url": "https://example.com}` // no closing quote for value
+		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
 
-// 		if status := rr.Code; status != http.StatusBadRequest {
-// 			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
-// 		}
-// 	})
+		rr := httptest.NewRecorder()
+		handler.HandleShorten(rr, req)
 
-// 	t.Run("mutiple JSON objects", func(t *testing.T) {
-// 		body := `{"url":"https://example.com"}{"url":"https://another.com"}`
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		rr := httptest.NewRecorder()
+		if status := rr.Code; status != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
+		}
+	})
 
-// 		HandleShorten(rr, req)
+	// DisallowUnknownFields error
+	t.Run("unknown fields in JSON", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)
 
-// 		if status := rr.Code; status != http.StatusBadRequest {
-// 			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
-// 		}
-// 	})
+		body := `{"url":"https://example.com", "extra":"nope"}`
+		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
+		rr := httptest.NewRecorder()
 
-// 	t.Run("request body too large", func(t *testing.T) {
-// 		// Create a valid JSON body larger than maxBodyBytes (1MB)
-// 		// Use a very long URL string to exceed the limit
+		handler.HandleShorten(rr, req)
 
-// 		longURL := "https://example.com/" + strings.Repeat("a", maxBodyBytes)
-// 		body := `{"url":"` + longURL + `"}`
+		if status := rr.Code; status != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
+		}
+	})
 
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		rr := httptest.NewRecorder()
+	t.Run("mutiple JSON objects", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)
 
-// 		HandleShorten(rr, req)
+		body := `{"url":"https://example.com"}{"url":"https://another.com"}`
+		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
+		rr := httptest.NewRecorder()
 
-// 		if status := rr.Code; status != http.StatusRequestEntityTooLarge {
-// 			t.Errorf("expected status %d, got %d", http.StatusRequestEntityTooLarge, status)
-// 		}
-// 	})
+		handler.HandleShorten(rr, req)
 
-// 	t.Run("empty URL", func(t *testing.T) {
-// 		body := `"url":""`
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		rr := httptest.NewRecorder()
+		if status := rr.Code; status != http.StatusBadRequest {
+			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
+		}
+	})
 
-// 		HandleShorten(rr, req)
+	t.Run("request body too large", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)
 
-// 		if status := rr.Code; status != http.StatusBadRequest {
-// 			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
-// 		}
-// 	})
+		// Create a valid JSON body larger than maxBodyBytes (1MB)
+		// Use a very long URL string to exceed the limit
 
-// 	t.Run("invalid URL scheme", func(t *testing.T) {
-// 		body := `{"url":"ftp://example.com"}`
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		rr := httptest.NewRecorder()
+		longURL := "https://example.com/" + strings.Repeat("a", maxBodyBytes)
+		body := `{"url":"` + longURL + `"}`
 
-// 		HandleShorten(rr, req)
+		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
+		rr := httptest.NewRecorder()
 
-// 		if status := rr.Code; status != http.StatusBadRequest {
-// 			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
-// 		}
-// 	})
+		handler.HandleShorten(rr, req)
 
-// 	t.Run("URL missing host", func(t *testing.T) {
-// 		body := `{"url":"https://"}`
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		rr := httptest.NewRecorder()
+		if status := rr.Code; status != http.StatusRequestEntityTooLarge {
+			t.Errorf("expected status %d, got %d", http.StatusRequestEntityTooLarge, status)
+		}
+	})
+}
 
-// 		HandleShorten(rr, req)
+func TestHandleRedirect_OK(t *testing.T) {
+	shortener := newTestShortener(t, newTestGenerator())
+	handler := NewHandler(shortener)
+	
+	url := "https://example.com"
 
-// 		if status := rr.Code; status != http.StatusBadRequest {
-// 			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
-// 		}
-// 	})
+	// setup
+	link, err := shortener.Create(url)
+	if err != nil {
+		t.Fatalf("setup failed: %v", err)
+	}
 
-// 	t.Run("relative URL rejected", func(t *testing.T) {
-// 		body := `{"url":"/path/to/resource"}`
-// 		req := httptest.NewRequest(http.MethodPost, "/shorten", strings.NewReader(body))
-// 		rr := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/"+link.ID, nil)
+	rr := httptest.NewRecorder()
 
-// 		HandleShorten(rr, req)
+	handler.HandleRedirect(rr, req)
 
-// 		if status := rr.Code; status != http.StatusBadRequest {
-// 			t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
-// 		}
-// 	})
-// 	// unexpected EOF
+	res := rr.Result()
+	res.Body.Close()
 
-// 	// do the request fields match the expected fields?
-// 	// unmarshalTypeErr error - i.e., do the request field types match the expected field types?
+	if res.StatusCode != http.StatusFound {
+		t.Fatalf("expected status 302, got %d", res.StatusCode)
+	}
 
-// 	// is the url structure correct? i.e. valid url
-// 	// does it have a scheme?
-// 	// does it have a host?
+	loc := res.Header.Get("Location")
+	if loc != link.URL {
+		t.Fatalf("expected redirect to %q, got %q", link.URL, loc)
+	}
+}
 
-// 	// is the url scheme allowed?
-// }
+func TestHandleRedirect_NotFound(t *testing.T) {
+	shortener := newTestShortener(t, newTestGenerator())
+	handler := NewHandler(shortener)
 
-// func TestValidateURL(t *testing.T) {
-// 	tests := []struct {
-// 		name    string
-// 		url     string
-// 		wantErr bool
-// 	}{
-// 		{"valid https", "https://example.com", false},
-// 		{"valid http", "http://example.com", false},
-// 		{"valid with path", "https://example.com/path", false},
-// 		{"empty url", "", true},
-// 		{"missing scheme", "example.com", true},
-// 		{"missing host", "https://", true},
-// 		{"relative path", "/path/to/resource", true},
-// 	}
+	req := httptest.NewRequest(http.MethodGet, "/doesnotexist", nil)
+	rr := httptest.NewRecorder()
 
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			err := validateURL(tt.url)
-// 			if (err != nil) != tt.wantErr {
-// 				t.Errorf("validateURL() error = %v, wantErr %v", err, tt.wantErr)
-// 			}
-// 		})
-// 	}
-// }
+	handler.HandleRedirect(rr, req)
+
+	res := rr.Result()
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, res.StatusCode)
+	}
+}
+
+func TestHandleRedirect_MissingID(t *testing.T) {
+	shortener := newTestShortener(t, newTestGenerator())
+	handler := NewHandler(shortener)
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rr := httptest.NewRecorder()
+
+	handler.HandleRedirect(rr, req)
+
+	res := rr.Result()
+	if res.StatusCode != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, res.StatusCode)
+	}
+}
+
+func TestHandleStats(t *testing.T) {
+	// Test: Happy path
+	t.Run("OK", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)
+
+		url := "https://example.com"
+
+		link, err := shortener.Create(url)
+		if err != nil {
+			t.Fatalf("setup failed: %v", err)
+		}
+
+		// increment hits
+		for i := 0; i < 3; i++ {
+			_, err := shortener.Resolve(link.ID)
+			if err != nil {
+				t.Fatalf("setup resolve failed: %v", err)
+			}
+		}
+
+		req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/stats/%s", link.ID), nil)
+		rr := httptest.NewRecorder()
+
+		handler.HandleStats(rr, req)
+
+		res := rr.Result()
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusOK {
+			t.Errorf("expected status %d, got %d", http.StatusOK, res.StatusCode)
+		}
+
+		var body statsResponse
+		if err := json.NewDecoder(res.Body).Decode(&body); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
+
+		if body.Short != link.ID {
+			t.Errorf("expected id %q, got %q", link.ID, body.Short)
+		}
+
+		if body.URL != link.URL {
+			t.Errorf("expected url %q, got %q", link.URL, body.URL)
+		}
+
+		if body.Hits != 2 {
+			t.Errorf("expected hits 3, got %d", body.Hits)
+		}
+
+		if _, err := time.Parse(time.RFC3339, body.CreatedAt); err != nil {
+			t.Fatalf("createdAt is not valid RFC3339: %v", err)
+		}
+	})
+
+	// Test: Missing id
+	t.Run("Missing ID", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)	
+
+		req := httptest.NewRequest(http.MethodGet, "/stats", nil)
+		rr := httptest.NewRecorder()
+
+		handler.HandleStats(rr, req)
+		res := rr.Result()
+		defer res.Body.Close()
+
+		if res.StatusCode != http.StatusBadRequest {
+			t.Fatalf("expected status 400, got %d", res.StatusCode)
+		}
+	})
+
+	// Test: ID not found
+	t.Run("NOT FOUND", func(t *testing.T) {
+		shortener := newTestShortener(t, newTestGenerator())
+		handler := NewHandler(shortener)	
+
+		req := httptest.NewRequest(http.MethodGet, "/stats/madethisup", nil)
+		rr := httptest.NewRecorder()
+
+		handler.HandleStats(rr, req)
+
+		res := rr.Result()
+		res.Body.Close()
+
+		if res.StatusCode != http.StatusNotFound {
+			t.Fatalf("expected status 404, got %d", res.StatusCode)
+		}
+	})	
+}

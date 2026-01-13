@@ -48,8 +48,7 @@ func (store *MemStore) List() []ShortLink {
 	defer store.mu.RUnlock()
 
 	// return a snapshot, not the internal map
-	// copy := make(map[string]ShortLink, len(store.data))
-	copy := make([]ShortLink, len(store.data))
+	copy := make([]ShortLink, 0, len(store.data))
 
 	for _, v := range store.data {
 		copy = append(copy, v)
