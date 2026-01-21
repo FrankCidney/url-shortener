@@ -134,7 +134,9 @@ func (h *Handler) HandleRedirect(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
-	id := strings.TrimPrefix(r.URL.Path, "/stats/")
+	// id := strings.TrimPrefix(r.URL.Path, "/stats/")
+	id := strings.TrimPrefix(r.URL.Path, "/stats")
+	id = strings.TrimPrefix(id, "/") // remove leading slash if present
 	if id == "" {
 		writeError(w, http.StatusBadRequest, "misssing id")
 		return

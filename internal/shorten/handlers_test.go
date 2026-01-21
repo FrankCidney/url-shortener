@@ -238,7 +238,7 @@ func TestHandleStats(t *testing.T) {
 			t.Errorf("expected url %q, got %q", link.URL, body.URL)
 		}
 
-		if body.Hits != 2 {
+		if body.Hits != 3 {
 			t.Errorf("expected hits 3, got %d", body.Hits)
 		}
 
