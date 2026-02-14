@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -38,7 +39,15 @@ import (
 
 func Start(ctx context.Context) error {
 	// 1. Create infra / dependencies
-	store := shorten.NewMemStore()
+	dsn := "" // TODO: fill out the dsn
+	
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		log.Fatalf("db error: %v", err)
+	}
+
+	// store := shorten.NewMemStore()
+	store := shorten.NewPGStore(db)
 	generator := shorten.NewBase62Generator()
 	shortener := shorten.NewShortener(store, generator)
 

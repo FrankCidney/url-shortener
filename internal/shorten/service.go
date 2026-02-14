@@ -67,20 +67,23 @@ func (s *Shortener) Create(url string) (ShortLink, error) {
 			return ShortLink{}, err
 		}
 
-		// check collision
-		if _, exists := s.store.Get(id); exists {
-			// collision -> try again
-			continue
-		}
+		// // check collision
+		// if _, exists := s.store.Get(id); exists {
+		// 	// collision -> try again
+		// 	continue
+		// }
 
 		link := ShortLink{
 			ID:        id,
 			URL:       url,
-			CreatedAt: time.Now(),
 			Hits:      0,
+			CreatedAt: time.Now(),
 		}
 
 		if err := s.store.Save(link); err != nil {
+			if errors.Is(err, ErrDuplicateID) {
+				continue // collision -> retry
+			}
 			return ShortLink{}, err
 		}
 

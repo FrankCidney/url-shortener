@@ -1,6 +1,13 @@
 package shorten
 
-import "database/sql"
+import (
+	"database/sql"
+	"errors"
+
+	"github.com/lib/pq"
+)
+
+var ErrDuplicateID = errors.New("duplicate short id")
 
 type PGStore struct {
 	db *sql.DB
@@ -15,8 +22,17 @@ func (store *PGStore) Save(link ShortLink) error {
 	INSERT INTO links (short_id, original_url, hits, created_at)
 	VALUES ($1, $2, $3, NOW())
 	`, link.ID, link.URL, link.Hits)
+
+	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok {
+			if pqErr.Code == "23505" {
+				return ErrDuplicateID
+			}
+		}
+		return err
+	}
 	
-	return err
+	return nil
 }
 
 func (store *PGStore) Get(id string) (ShortLink, error) {
