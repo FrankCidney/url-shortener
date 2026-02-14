@@ -7,8 +7,6 @@ import (
 	"github.com/lib/pq"
 )
 
-var ErrDuplicateID = errors.New("duplicate short id")
-
 type PGStore struct {
 	db *sql.DB
 }
@@ -31,7 +29,7 @@ func (store *PGStore) Save(link ShortLink) error {
 		}
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -50,6 +48,9 @@ func (store *PGStore) Get(id string) (ShortLink, error) {
 	)
 
 	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ShortLink{}, ErrNotFound
+		}
 		return ShortLink{}, err
 	}
 
@@ -57,11 +58,24 @@ func (store *PGStore) Get(id string) (ShortLink, error) {
 }
 
 func (store *PGStore) IncrementHits(id string) error {
-	_, err := store.db.Exec(`
-	UPDATE links (hits)
+	result, err := store.db.Exec(`
+	UPDATE links
 	SET hits = hits + 1
 	WHERE short_id = $1
 	`, id)
 
-	return err
+	if err != nil {
+		return err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	
+	if rows == 0 {
+		return ErrNotFound
+	}
+
+	return nil
 }

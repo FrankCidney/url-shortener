@@ -17,42 +17,50 @@ func (store *MemStore) Save(link ShortLink) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
+	if _, exists := store.data[link.ID]; exists {
+		return ErrDuplicateID
+	}
 	store.data[link.ID] = link
 
 	return nil
 }
 
-func (store *MemStore) Get(id string) (ShortLink, bool) {
+func (store *MemStore) Get(id string) (ShortLink, error) {
 	store.mu.RLock()
 	defer store.mu.RUnlock()
 
-	value, exists := store.data[id]
-	return value, exists
-}
-
-func (store *MemStore) List() []ShortLink {
-	store.mu.RLock()
-	defer store.mu.RUnlock()
-
-	// return a snapshot, not the internal map
-	copy := make([]ShortLink, 0, len(store.data))
-
-	for _, v := range store.data {
-		copy = append(copy, v)
+	link, exists := store.data[id]
+	if !exists {
+		return ShortLink{}, ErrNotFound
 	}
 
-	return copy
+	return link, nil
 }
 
-func (store *MemStore) IncrementHits(id string) {
+// func (store *MemStore) List() []ShortLink {
+// 	store.mu.RLock()
+// 	defer store.mu.RUnlock()
+
+// 	// return a snapshot, not the internal map
+// 	copy := make([]ShortLink, 0, len(store.data))
+
+// 	for _, v := range store.data {
+// 		copy = append(copy, v)
+// 	}
+
+// 	return copy
+// }
+
+func (store *MemStore) IncrementHits(id string) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 
 	link, ok := store.data[id]
 	if !ok {
-		return
+		return ErrNotFound
 	}
 
 	link.Hits++
 	store.data[id] = link
+	return nil
 }

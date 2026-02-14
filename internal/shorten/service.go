@@ -8,7 +8,7 @@ import (
 )
 
 // todo: Find out: Should these (the error definitions below) be moved to a separate file specifically for errors? Is that better design than having them here?
-var ErrNotFound = errors.New("not found")
+// var ErrNotFound = errors.New("not found")
 var ErrInvalidURL = errors.New("invalid url")
 var ErrTooManyCollisions = errors.New("could not generate unique id, too many collisions")
 
@@ -90,14 +90,18 @@ func (s *Shortener) Create(url string) (ShortLink, error) {
 		return link, nil
 	}
 
-	return ShortLink{}, ErrTooManyCollisions 
+	return ShortLink{}, ErrTooManyCollisions
 }
 
 // Resolve returns the URL associated with the given id. It also increments hits
 func (s *Shortener) Resolve(id string) (string, error) {
-	link, ok := s.store.Get(id)
-	if !ok {
-		return "", ErrNotFound
+	link, err := s.store.Get(id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return "", ErrNotFound
+		}
+		// TODO: Note how I almost forgot this return statement
+		return "", err
 	}
 
 	s.store.IncrementHits(id)
@@ -107,9 +111,12 @@ func (s *Shortener) Resolve(id string) (string, error) {
 
 // Stats returns metadata for an ID, including the Short ID itself, the associated URL, hit count, and time of creation of the ID
 func (s *Shortener) Stats(id string) (ShortLink, error) {
-	link, ok := s.store.Get(id)
-	if !ok {
-		return ShortLink{}, ErrNotFound
+	link, err := s.store.Get(id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return ShortLink{}, ErrNotFound
+		}
+		return ShortLink{}, err
 	}
 
 	return link, nil
