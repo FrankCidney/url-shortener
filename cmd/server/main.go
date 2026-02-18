@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"database/sql"
+	// "database/sql"
 	"log"
 	"net/http"
 	"os"
@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"shortener/internal/db"
 	"shortener/internal/shorten"
 )
 
@@ -39,15 +40,29 @@ import (
 
 func Start(ctx context.Context) error {
 	// 1. Create infra / dependencies
-	dsn := "" // TODO: fill out the dsn
+	// dsn := "postgress://tester:password@localhost:5432/testdb?sslmode=disable"
 	
-	db, err := sql.Open("postgres", dsn)
+	// db, err := sql.Open("postgres", dsn)
+	// if err != nil {
+	// 	log.Fatalf("db error: %v", err)
+	// }
+
+	cfg := db.Config{
+		Host: "localhost",
+		Port: 5432,
+		User: "tester",
+		Password: "password",
+		DBName: "testdb",
+		SSLMode: "disable",
+	}
+
+	sqlDB, err := db.Connect(cfg)
 	if err != nil {
 		log.Fatalf("db error: %v", err)
 	}
 
 	// store := shorten.NewMemStore()
-	store := shorten.NewPGStore(db)
+	store := shorten.NewPGStore(sqlDB)
 	generator := shorten.NewBase62Generator()
 	shortener := shorten.NewShortener(store, generator)
 

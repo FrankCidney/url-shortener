@@ -28,12 +28,12 @@ type shortenResponse struct {
 	URL   string `json:"url"`
 }
 
-type statsResponse struct {	
-		URL       string `json:"url"`
-		Short        string `json:"short"`
-		Hits      int64 `json:"hits"`
-		CreatedAt string `json:"createdAt"`
-	}
+type statsResponse struct {
+	URL       string `json:"url"`
+	Short     string `json:"short"`
+	Hits      int64  `json:"hits"`
+	CreatedAt string `json:"createdAt"`
+}
 
 type apiError struct {
 	Error string `json:"error"`
@@ -52,7 +52,7 @@ func writeError(w http.ResponseWriter, status int, msg string) {
 func (h *Handler) HandleShorten(w http.ResponseWriter, r *http.Request) {
 	// 1) method
 	// This one's basically redundant since Go already blocks other methods when you indicate the method in your path string when
-	// registering a handler. 
+	// registering a handler.
 	// But I'll leave it in for now in case say someone forgets and registers a handler without indicating it should only accept POST requests.
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -153,9 +153,9 @@ func (h *Handler) HandleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := statsResponse{
-		URL: link.URL,
-		Short: link.ID,
-		Hits: link.Hits,
+		URL:       link.URL,
+		Short:     link.ID,
+		Hits:      link.Hits,
 		CreatedAt: link.CreatedAt.Format(time.RFC3339),
 	}
 

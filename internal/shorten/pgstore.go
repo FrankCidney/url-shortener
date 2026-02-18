@@ -17,7 +17,7 @@ func NewPGStore(db *sql.DB) *PGStore {
 
 func (store *PGStore) Save(link ShortLink) error {
 	_, err := store.db.Exec(`
-	INSERT INTO links (short_id, original_url, hits, created_at)
+	INSERT INTO link (short_id, original_url, hits, created_at)
 	VALUES ($1, $2, $3, NOW())
 	`, link.ID, link.URL, link.Hits)
 
@@ -38,7 +38,7 @@ func (store *PGStore) Get(id string) (ShortLink, error) {
 
 	err := store.db.QueryRow(`
 	SELECT short_id, original_url, hits, created_at 
-	FROM links 
+	FROM link 
 	WHERE short_id = $1
 	`, id).Scan(
 		&link.ID,
@@ -59,7 +59,7 @@ func (store *PGStore) Get(id string) (ShortLink, error) {
 
 func (store *PGStore) IncrementHits(id string) error {
 	result, err := store.db.Exec(`
-	UPDATE links
+	UPDATE link
 	SET hits = hits + 1
 	WHERE short_id = $1
 	`, id)
